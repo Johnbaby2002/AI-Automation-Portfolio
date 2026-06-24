@@ -1,0 +1,413 @@
+{
+  "name": "Subscription Reply and labeling",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -352,
+        -176
+      ],
+      "id": "f9e3eee6-9f58-4cd9-aebb-347a9f3cb631",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P1eBVj7bNiZbeyhh",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "361441c3-b619-45b9-a9ed-890b6fd2216d",
+              "name": "Email Context",
+              "value": "=From: {{ $json.headers.from }}\n\nSubject: {{ $json.headers.subject }}\n\nEmail Body: {{ $json.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -112,
+        48
+      ],
+      "id": "71c90090-b31f-490e-96aa-6069958a0356",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=**Role:**\nYour task is to determine whether an email is related to a subscription or not.\n\nRespond with a JSON object containing the following fields:\n\n-*+isSubscription:** Can be either '\"true\"' or \"false\".\n-**reasoning:** Explain your answer.\n\nThink step by step about your response.\n\n\n\n{{ $json['Email Context'] }}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        16,
+        0
+      ],
+      "id": "a7101c87-d5ba-48c6-b180-8dade49cde03",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        64,
+        192
+      ],
+      "id": "2f9cd705-0233-4b83-beb7-a11f2fabb155",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "YW2pivIEki4OfIAx",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"isSubscription\": {\n\t\t\t\"type\": \"boolean\"\n\t\t},\n\t\t\"reasoning\": {\n\t\t\t\"type\": \"string\"\n\t\t\t}\n\t\t},\n  \"required\":[\"isSubscription\", \"reasoning\"]\n\t}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        224
+      ],
+      "id": "c679c74e-58d2-42ee-bce7-fc18c1ba8df9",
+      "name": "Structured Output Parser",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        224,
+        336
+      ],
+      "id": "5fa23d90-b6ce-4e8f-9d32-d21916aa76f8",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "YW2pivIEki4OfIAx",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "06b8b8e5-7939-438c-b3b2-02c1d23f7d0d",
+              "leftValue": "={{ $json.output.isSubscription }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        288,
+        -16
+      ],
+      "id": "3ce28ca9-2a56-4b16-8265-2c50208dcdc7",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        816,
+        160
+      ],
+      "id": "deec56c0-01a4-4fbc-82c4-d91a45c3c344",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=**Role:**\nYou work as an email assistant for my inbox.\nYour task is to review incoming emails and identify whether they are subscription-related emails.\n\n**Task:**\nCarefully review the email context below and decide if the email is related to a subscription, newsletter, membership, recurring service, trial, billing plan, or account signup.\nReturn only a structured response that matches the required output format.\nDo **not** include extra explanations outside the required fields.\n\n**Classification Rules:**\n\n### Subscription Email Detection\n\n#### **Mark as Subscription**\nSet `isSubscription` to `true` if the email mentions any of the following:\n- Newsletter subscription\n- Paid or free membership\n- Recurring billing\n- Trial start, trial ending, or trial expired\n- Monthly or yearly plan\n- Account signup confirmation\n- Subscription renewal\n- Payment for a recurring service\n- Unsubscribe link or mailing list preferences\n- Promotional emails from a service the user appears signed up for\n\n#### **Mark as Not Subscription**\nSet `isSubscription` to `false` if the email is mainly about:\n- Personal conversation\n- One-time purchase receipt with no recurring plan\n- Job application or recruiting message\n- Security alert unrelated to a subscription\n- Delivery/shipping notification\n- Password reset\n- Direct business or sales outreach\n- Spam with no clear subscription/membership context\n\n#### **Reasoning**\nIn `reasoning`, briefly explain why the email was classified that way.\nKeep it to one short sentence.\n\n**Output Format:**\nReturn a JSON object only:\n\n{\n  \"isSubscription\": true,\n  \"reasoning\": \"This email is about a recurring newsletter subscription.\"\n}"
+            },
+            {
+              "content": "=Email Context: {{ $('Edit Fields').item.json['Email Context'] }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        704,
+        -80
+      ],
+      "id": "4cdc4036-f29f-4cdd-a268-27fae089a3c4",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "YW2pivIEki4OfIAx",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -304,
+        32
+      ],
+      "id": "d8bf29dd-d6aa-4a78-ad03-6e6efbba8d67",
+      "name": "Get a message",
+      "webhookId": "5100240a-14e5-4cf1-a456-2476891efd64",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P1eBVj7bNiZbeyhh",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "message": "={{ $json.output[0].content[0].text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        0
+      ],
+      "id": "4cffc9e2-3c90-4fd0-923d-bb35fefd7f2a",
+      "name": "Reply to a message",
+      "webhookId": "3c89dd75-13b7-453b-95ea-ab39dddc7894",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P1eBVj7bNiZbeyhh",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": [
+          "Label_1"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "e3e7aaf1-bf9a-4c27-bfb1-df58be17fd80",
+      "name": "Add label to message",
+      "webhookId": "8100dcc6-a662-4109-a184-b56c9a06df83",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "P1eBVj7bNiZbeyhh",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Reply to a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to a message": {
+      "main": [
+        [
+          {
+            "node": "Add label to message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9c130aaa-929a-420b-8058-f611baab8d68",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "83539719ee2a09e0d94d2cadadf9420469cafe07e3a2282efad782e4d9377a28"
+  },
+  "id": "cndsLOs2mjhr2bHU",
+  "tags": []
+}
