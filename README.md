@@ -2,61 +2,9 @@
 
 Designing and deploying AI-powered agents, workflow automation systems, and intelligent messaging solutions using OpenAI, n8n, Cloudflare, and modern APIs.
 
-## Executive Summary
-
-This portfolio showcases practical AI-powered automation systems built with n8n, OpenAI models, external APIs, and self-hosted webhook infrastructure. The workflows demonstrate how AI agents can be connected to real communication channels, business tools, memory, structured outputs, and tool-calling workflows.
-
-The focus is practical automation, not simple chatbot demos. Each system is designed around a real operational pattern: classifying and responding to email, answering messages through chat platforms, retrieving external information, and orchestrating actions across APIs.
-
-The portfolio combines:
-
-- AI agents for reasoning and response generation
-- Tool calling for external actions and information retrieval
-- Conversational memory for context-aware replies
-- Structured outputs for reliable branching logic
-- Event-driven workflow orchestration
-- API integrations with Gmail, Telegram, WhatsApp, SerpApi, Wikipedia, and Hacker News
-- Self-hosted n8n infrastructure exposed through Cloudflare Tunnel
-
-## Why This Portfolio Exists
-
-Repetitive administrative work is one of the strongest use cases for AI automation. Email handling, routine customer communication, information retrieval, internal workflow updates, and first-pass triage all consume time that can often be reduced with well-designed automation systems.
-
-This portfolio explores how AI agents can support those workflows without relying on isolated chat interfaces. Instead of requiring a user to manually ask a chatbot for help, these systems are triggered by real events such as an incoming email, Telegram message, or WhatsApp message.
-
-The work is also relevant to Health Informatics and Digital Health. Healthcare and health-adjacent organizations depend on communication, documentation, follow-up, search, routing, and administrative coordination. The same automation patterns shown here can support safer information access, reduce manual workload, and improve operational responsiveness when adapted responsibly to healthcare environments.
-
-## System Architecture
-
-```text
-User channels
-  WhatsApp
-  Telegram
-  Gmail
-      |
-      v
-n8n workflows
-      |
-      v
-OpenAI AI agents
-      |
-      v
-Tools and APIs
-  Gmail
-  Wikipedia
-  SerpApi
-  Hacker News
-  Calculator
-      |
-      v
-Cloudflare Tunnel / self-hosted n8n infrastructure
-```
-
-At a high level, each system starts with an external event, routes that event into n8n, uses an AI Agent for reasoning, optionally calls tools or APIs, and sends a response or performs an action through the relevant channel.
-
 ## What Is Included
 
-This repository contains exported n8n workflow files, screenshots, and setup documentation for three independent automation systems.
+This repository contains exported n8n workflow files, screenshots, and setup documentation for three independent automation systems. Each system is designed around a real operational workflow rather than a standalone chatbot demo.
 
 ```text
 workflows/
@@ -80,25 +28,6 @@ docs/images/
 
 Credentials are intentionally not stored in this repository. After importing the workflows, reconnect the required credentials inside n8n.
 
-## Importing The Workflows
-
-Import any package you want to use:
-
-```text
-n8n UI -> Workflows -> Import from File
-```
-
-For the Telegram package, import both files:
-
-```text
-workflows/telegram-search-subworkflow.json
-workflows/telegram-assistant.json
-```
-
-Then open `telegram-assistant.json` in n8n and confirm that the `search_agent` tool points to the imported search sub-workflow.
-
-The Gmail and WhatsApp workflows are independent and can be imported separately.
-
 ## Gmail Subscription Assistant
 
 ![Gmail Subscription Assistant](docs/images/subscription-reply-and-labeling.png)
@@ -110,6 +39,16 @@ Reduce repetitive inbox work by identifying subscription-related emails, prepari
 ### What It Does
 
 This workflow starts from a Gmail trigger. It fetches the email, normalizes fields, asks an AI Agent whether the message is subscription-related, branches on the result, generates a reply when needed, sends the Gmail reply, and applies a Gmail label.
+
+### How I Built It
+
+I built this as an event-driven n8n workflow where Gmail is the entry point. The trigger listens for incoming Gmail messages, then a Gmail node retrieves the full message content so the AI step has enough context to classify the email.
+
+Before sending the message into the agent, I used an Edit Fields step to normalize the data that matters for classification. This keeps the prompt focused on the email content instead of passing a noisy raw Gmail payload.
+
+The AI Agent is connected to an OpenAI Chat Model and a Structured Output Parser. The prompt asks the model to return a predictable JSON object with fields such as `isSubscription` and `reasoning`. That structured response is then used by an If node to decide whether the workflow should continue to reply and label the email or stop without action.
+
+For the action path, the workflow uses an OpenAI model node to generate the reply text, a Gmail reply node to respond in the same thread, and a Gmail label node to mark the message. This demonstrates a full loop: event intake, AI classification, structured decision-making, content generation, and API-based action.
 
 ### Main Components
 
@@ -157,6 +96,16 @@ Create a Telegram-based AI assistant that can answer user messages, preserve sho
 
 This workflow receives Telegram messages, passes the message text into an AI Agent, keeps short-term conversation memory, and replies back into the same Telegram chat. It can call the search helper workflow through a tool node named `search_agent`.
 
+### How I Built It
+
+I built the Telegram assistant around a Telegram Trigger node that listens for new messages from a Telegram bot. The workflow extracts the incoming message text and passes it directly into an AI Agent as the main user prompt.
+
+The AI Agent is connected to an OpenAI Chat Model for reasoning and response generation. I added Simple Memory so the assistant can keep short-term conversation context instead of treating every message as isolated.
+
+The important design choice is the `search_agent` tool. Instead of placing all research tools inside the main Telegram workflow, I connected the agent to a separate n8n workflow tool. This keeps the Telegram workflow focused on chat intake and reply delivery, while the search workflow handles external lookup.
+
+The final Telegram node sends the AI output back to the same chat ID from the original trigger. This makes the workflow a complete conversational loop: message received, context loaded, agent reasoning performed, optional tool workflow called, and response sent back through Telegram.
+
 ### Main Components
 
 - Telegram Trigger for inbound messages
@@ -195,6 +144,14 @@ Provide a reusable research sub-workflow that can be called by another workflow 
 ### What It Does
 
 This helper workflow is called by the Telegram Research Assistant when a user asks for information that benefits from external lookup. It gives the AI Agent access to Wikipedia, Hacker News, and SerpApi-powered Google Search.
+
+### How I Built It
+
+I built this as a sub-workflow using the "When Executed by Another Workflow" trigger. That lets the main Telegram assistant call it like a tool and pass in a search query as structured input.
+
+Inside the helper, an AI Agent receives the query and decides which research tool is most appropriate. It can use Wikipedia for general knowledge, Hacker News for technology-related information, and SerpApi for broader Google Search results.
+
+This modular design keeps external research separate from message delivery. It also makes the research layer reusable: another workflow could call the same helper without duplicating search nodes or prompt logic.
 
 ### Main Components
 
@@ -235,6 +192,14 @@ Build a WhatsApp-based AI assistant that can respond to messages, maintain conte
 
 This workflow turns WhatsApp into an AI assistant channel. It receives inbound WhatsApp messages, passes the message body to an AI Agent, remembers short-term context, and replies through WhatsApp. It also gives the agent tools for calculation, Wikipedia lookup, and Gmail sending.
 
+### How I Built It
+
+I built this workflow around a WhatsApp Trigger node connected to the WhatsApp Cloud API. Incoming WhatsApp message text is extracted from the webhook payload and passed into an AI Agent.
+
+The agent uses an OpenAI Chat Model for reasoning and Simple Memory for short-term context. I added multiple tools to make the agent more useful than a basic responder: Calculator for arithmetic, Wikipedia for lookup, and a Gmail tool for composing and sending email when requested.
+
+The response path uses the WhatsApp send message node to return the final agent output to the user. This workflow demonstrates a multi-tool messaging assistant where the AI agent can reason, choose a tool, perform an action, and reply through the original communication channel.
+
 ### Main Components
 
 - WhatsApp Trigger for inbound messages
@@ -265,6 +230,95 @@ Main nodes:
 - Calculator
 - Wikipedia
 - Send a message in Gmail
+
+## Executive Summary
+
+This portfolio showcases practical AI-powered automation systems built with n8n, OpenAI models, external APIs, and self-hosted webhook infrastructure. The workflows demonstrate how AI agents can be connected to real communication channels, business tools, memory, structured outputs, and tool-calling workflows.
+
+The focus is practical automation, not simple chatbot demos. Each system is designed around a real operational pattern: classifying and responding to email, answering messages through chat platforms, retrieving external information, and orchestrating actions across APIs.
+
+The portfolio combines:
+
+- AI agents for reasoning and response generation
+- Tool calling for external actions and information retrieval
+- Conversational memory for context-aware replies
+- Structured outputs for reliable branching logic
+- Event-driven workflow orchestration
+- API integrations with Gmail, Telegram, WhatsApp, SerpApi, Wikipedia, and Hacker News
+- Self-hosted n8n infrastructure exposed through Cloudflare Tunnel
+
+## How The Systems Were Built
+
+The systems were built in n8n using a visual workflow architecture. Each workflow is composed of trigger nodes, AI Agent nodes, OpenAI model nodes, tool nodes, memory nodes, and service-specific action nodes.
+
+The build process followed a consistent pattern:
+
+1. Define the event source, such as Gmail, Telegram, or WhatsApp.
+2. Extract the message or email content from the incoming payload.
+3. Normalize the payload so the AI agent receives only relevant context.
+4. Connect the AI Agent to an OpenAI Chat Model.
+5. Add tools such as Gmail, Wikipedia, SerpApi, Hacker News, Calculator, or a workflow tool.
+6. Add memory where the channel benefits from conversation continuity.
+7. Use structured outputs or conditional nodes where the workflow needs reliable branching.
+8. Send the final output back through the original channel or perform the connected action.
+9. Expose the local n8n instance through Cloudflare Tunnel so external webhook platforms can reach it over HTTPS.
+
+This approach keeps the workflows inspectable. Each step in the system is visible as a node, which makes debugging easier than hiding the logic inside a single script.
+
+## Why This Portfolio Exists
+
+Repetitive administrative work is one of the strongest use cases for AI automation. Email handling, routine customer communication, information retrieval, internal workflow updates, and first-pass triage all consume time that can often be reduced with well-designed automation systems.
+
+This portfolio explores how AI agents can support those workflows without relying on isolated chat interfaces. Instead of requiring a user to manually ask a chatbot for help, these systems are triggered by real events such as an incoming email, Telegram message, or WhatsApp message.
+
+The work is also relevant to Health Informatics and Digital Health. Healthcare and health-adjacent organizations depend on communication, documentation, follow-up, search, routing, and administrative coordination. The same automation patterns shown here can support safer information access, reduce manual workload, and improve operational responsiveness when adapted responsibly to healthcare environments.
+
+## System Architecture
+
+```text
+User channels
+  WhatsApp
+  Telegram
+  Gmail
+      |
+      v
+n8n workflows
+      |
+      v
+OpenAI AI agents
+      |
+      v
+Tools and APIs
+  Gmail
+  Wikipedia
+  SerpApi
+  Hacker News
+  Calculator
+      |
+      v
+Cloudflare Tunnel / self-hosted n8n infrastructure
+```
+
+At a high level, each system starts with an external event, routes that event into n8n, uses an AI Agent for reasoning, optionally calls tools or APIs, and sends a response or performs an action through the relevant channel.
+
+## Importing The Workflows
+
+Import any package you want to use:
+
+```text
+n8n UI -> Workflows -> Import from File
+```
+
+For the Telegram package, import both files:
+
+```text
+workflows/telegram-search-subworkflow.json
+workflows/telegram-assistant.json
+```
+
+Then open `telegram-assistant.json` in n8n and confirm that the `search_agent` tool points to the imported search sub-workflow.
+
+The Gmail and WhatsApp workflows are independent and can be imported separately.
 
 ## Demonstrated Competencies
 
